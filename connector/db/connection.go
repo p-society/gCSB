@@ -13,6 +13,7 @@ import (
 
 var Collection *mongo.Collection
 var Database *mongo.Database
+var Client *mongo.Client
 
 func Init() {
 	err := godotenv.Load()
@@ -28,7 +29,7 @@ func Init() {
 	const collection1Name = "all-players"
 
 	clientOptions := options.Client().ApplyURI(dbLink)
-	client, err := mongo.Connect(context.TODO(), clientOptions)
+	Client, err = mongo.Connect(context.TODO(), clientOptions)
 
 	if err != nil {
 		log.Fatal("Error Occurred while connecting to the database:", err)
@@ -36,7 +37,11 @@ func Init() {
 
 	fmt.Println("Connection to Database Successful")
 
-	Database = client.Database(databaseName)
+	Database = Client.Database(databaseName)
 	Collection = Database.Collection(collection1Name)
 	fmt.Printf("Collection Instance %s is Ready.", collection1Name)
+}
+
+func ProvideAptCollection(dbName, colName string) *mongo.Collection {
+	return Client.Database(dbName).Collection(colName)
 }

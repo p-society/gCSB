@@ -138,8 +138,6 @@ func VerifyPlayerController(w http.ResponseWriter, r *http.Request) {
 		update := bson.D{
 			{"$set", bson.D{
 				{"verified", true},
-				{"otp", ""},
-				{"otpexpirationtime", "infinite"},
 			}},
 		}
 
@@ -169,8 +167,9 @@ Work of Captain is to select the players and create the roster.
 */
 
 type CaptainResponseCreator struct {
-	Team  string `json:"team,omitempty"`
-	Sport string `json:"sport,omitempty"`
+	Team    string `json:"team,omitempty"`
+	Sport   string `json:"sport,omitempty"`
+	Passkey string `json:"passkey,omitempty"`
 }
 
 func CaptainFetchController(w http.ResponseWriter, r *http.Request) {
@@ -185,10 +184,21 @@ func CaptainFetchController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filter := bson.M{}
+	if capFilter.Passkey != CAPTAIN_UNIQUE_KEY {
+		errPayload := map[string]interface{}{
+			"error": "Captain passkey error,Auth Denied.",
+		}
+		json.NewEncoder(w).Encode(errPayload)
+		return
+	}
+
+	filter := bson.M{
+		"team":     capFilter.Team,
+		"sport":    capFilter.Sport,
+		"verified": true,
+	}
 
 	cursor, err := generaldb.Collection.Find(r.Context(), filter)
-
 	if err != nil {
 		json.NewEncoder(w).Encode(err)
 		fmt.Println(err)
@@ -206,6 +216,8 @@ func CaptainFetchController(w http.ResponseWriter, r *http.Request) {
 		players = append(players, player)
 	}
 
+	json.NewEncoder(w).Encode(players)
+
 	// Checking for errors during cursor iteration
 	if err := cursor.Err(); err != nil {
 		log.Fatal(err)
@@ -215,4 +227,43 @@ func CaptainFetchController(w http.ResponseWriter, r *http.Request) {
 	for _, doc := range players {
 		fmt.Printf("%+v\n", doc)
 	}
+}
+
+func CaptainPushController(w http.ResponseWriter, r *http.Request) {
+	var players []tempModel.PlayerTemp
+
+	err := json.NewDecoder(r.Body).Decode(&players)
+
+	if err != nil {
+		json.NewEncoder(w).Encode(err)
+		fmt.Println(err)
+		return
+	}
+	// fmt.Println(players);
+
+	var insertPayload []interface{}
+	for _, player := range players {
+		insertPayload = append(insertPayload, player)
+	}
+
+	dbName := players[0].Sport + "db"
+	colName := "players"
+	// db := generaldb.Client.Database(dbName)
+	// col := db.Collection("players")
+	col := generaldb.ProvideAptCollection(dbName, colName)
+
+	ins, err := col.InsertMany(r.Context(), insertPayload)
+
+	if err != nil {
+		json.NewEncoder(w).Encode(err)
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(ins)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"roster_created": "true",
+		"objects":        len(players),
+	})
 }

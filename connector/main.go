@@ -17,6 +17,8 @@ func main() {
 	r.HandleFunc("/register/player", playerRegistration.PlayerRegistrationController).Methods("POST")
 	r.HandleFunc("/verify/player", playerRegistration.VerifyPlayerController).Methods("POST")
 	r.HandleFunc("/captain/fetch", playerRegistration.CaptainFetchController).Methods("POST")
+	r.HandleFunc("/captain/upload-roster", playerRegistration.CaptainPushController).Methods("POST")
+	
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
