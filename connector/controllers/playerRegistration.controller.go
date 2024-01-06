@@ -43,8 +43,12 @@ func PlayerRegistrationController(w http.ResponseWriter, r *http.Request) {
 	player.OTP = OTP
 	player.Verified = false
 	player.OTPExpiration = expirationTime
-	inserted, err := generaldb.Collection.InsertOne(r.Context(), player)
+	player.IsInTeam = false
+	player.WasInTeam = false
+	fmt.Println(":p.iit:", player.IsInTeam)
 
+	inserted, err := generaldb.Collection.InsertOne(r.Context(), player)
+	fmt.Println("inserted Player", inserted)
 	content := `
 	<html>
 		<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f5f5f5; color: #333; text-align: center; padding: 20px;">
@@ -159,6 +163,7 @@ func VerifyPlayerController(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// hardcoding as of now.
 const CAPTAIN_UNIQUE_KEY = "iiitbbsr"
 
 /*
@@ -225,7 +230,7 @@ func CaptainFetchController(w http.ResponseWriter, r *http.Request) {
 
 	// Print or process the retrieved documents
 	for _, doc := range players {
-		fmt.Printf("%+v\n", doc)
+		fmt.Printf("Doc:%+v\n", doc)
 	}
 }
 
@@ -239,28 +244,52 @@ func CaptainPushController(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		return
 	}
-	// fmt.Println(players);
 
-	var insertPayload []interface{}
-	for _, player := range players {
-		insertPayload = append(insertPayload, player)
+	var allPlayers []tempModel.PlayerTemp
+
+	filter := bson.M{
+		"team":     players[0].Team,
+		"sport":    players[0].Sport,
+		"verified": true		,
 	}
 
-	dbName := players[0].Sport + "db"
-	colName := "players"
-	// db := generaldb.Client.Database(dbName)
-	// col := db.Collection("players")
-	col := generaldb.ProvideAptCollection(dbName, colName)
-
-	ins, err := col.InsertMany(r.Context(), insertPayload)
-
+	cursor, err := generaldb.Collection.Find(r.Context(), filter)
 	if err != nil {
 		json.NewEncoder(w).Encode(err)
 		fmt.Println(err)
 		return
 	}
 
-	fmt.Println(ins)
+	defer cursor.Close(r.Context())
+
+	for cursor.Next(r.Context()) {
+		var player tempModel.PlayerTemp
+		err := cursor.Decode(&player)
+		if err != nil {
+			log.Fatal(err)
+		}
+		players = append(players, player)
+	}
+
+
+
+
+	for _, player := range players {
+
+		filter := bson.M{
+			"name":  player.Name,
+			"sport": player.Sport,
+		}
+
+		update := bson.D{
+			{Key: "$set", Value: bson.D{
+				{Key: "isinteam", Value: true},
+				{Key: "wasinteam", Value: true},
+			}},
+		}
+
+		generaldb.Collection.UpdateOne(r.Context(), filter, update)
+	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"roster_created": "true",

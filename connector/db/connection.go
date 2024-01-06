@@ -42,6 +42,3 @@ func Init() {
 	fmt.Printf("Collection Instance %s is Ready.", collection1Name)
 }
 
-func ProvideAptCollection(dbName, colName string) *mongo.Collection {
-	return Client.Database(dbName).Collection(colName)
-}
